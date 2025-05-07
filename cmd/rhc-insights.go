@@ -272,12 +272,12 @@ func doTimers(ctx context.Context, cmd *cli.Command) error {
 	tbl.Print()
 
 	fmt.Println()
-	fmt.Println("E ... Enabled by default   D ... Disabled by default")
-	fmt.Println("e ... Enabled              d ... Disabled")
-	fmt.Println("L ... Locked               ! ... Issue detected")
+	fmt.Println("E ... Enabled by default  D ... Disabled by default")
+	fmt.Println("e ... Enabled             d ... Disabled")
+	fmt.Println("L ... Locked              ! ... Issue detected")
 	fmt.Println()
 	fmt.Println("More detailed information is available via systemd:")
-	fmt.Println("$ systemctl status rhc-insights-$ID.timer)")
+	fmt.Println("$ systemctl status rhc-insights-$ID.timer")
 
 	// TODO If we are not root, pass --user
 	return nil
