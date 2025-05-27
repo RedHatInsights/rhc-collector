@@ -20,6 +20,7 @@ var CONFIGURATIONS_DIR string = "."
 var COLLECTIONS_DIR string = "/tmp/"
 var COLLECTIONS_DIR_PERMISSIONS os.FileMode = 0750
 var COLLECTIONS_DIR_ENVVAR = "COLLECTION_DIRECTORY"
+var CACHE_DIR string = "/tmp/"
 
 type Collector struct {
 	Meta struct {
@@ -46,17 +47,21 @@ func newCollectorFromPath(path string) (*Collector, error) {
 		slog.Error("cannot read collector configuration", "path", path)
 		return nil, fmt.Errorf("cannot read collector configuration from '%s'", path)
 	}
-	return newCollectorFromConfiguration(string(data))
+	return newCollectorFromConfiguration(path, string(data))
 }
 
 // newCollectorFromConfiguration parses the content of the configuration file into Collector.
-func newCollectorFromConfiguration(config string) (*Collector, error) {
+func newCollectorFromConfiguration(path, config string) (*Collector, error) {
 	var cc Collector
 	_, err := toml.Decode(config, &cc)
 	if err != nil {
-		slog.Error("cannot parse collector configuration")
+		slog.Error("cannot parse collector configuration", "path", path)
 		return nil, fmt.Errorf("cannot parse collector configuration")
 	}
+
+	id := filepath.Base(path)
+	cc.Meta.ID = id
+
 	slog.Debug("collector parsed", "id", cc.Meta.ID)
 	return &cc, nil
 }
@@ -84,7 +89,7 @@ func GetCollectors() ([]*Collector, error) {
 		return nil, err
 	}
 
-	configurations, err := filepath.Glob(filepath.Join(CONFIGURATIONS_DIR, "*.toml"))
+	configurations, err := filepath.Glob(filepath.Join(CONFIGURATIONS_DIR, "*"))
 	if err != nil {
 		log.Printf("cannot scan %s", CONFIGURATIONS_DIR)
 		return nil, fmt.Errorf("cannot scan %s", CONFIGURATIONS_DIR)
@@ -140,5 +145,29 @@ func Collect(collector *Collector) (string, error) {
 		return "", fmt.Errorf("could not run collector: %v", err)
 	}
 
+	if err = collector.UpdateLastRun(); err != nil {
+		slog.Error("cannot update collection timestamp", "id", collector.Meta.ID, "err", err)
+	}
+
 	return tempdir, nil
+}
+
+func (c *Collector) UpdateLastRun() error {
+	now := strconv.FormatInt(time.Now().Unix(), 10)
+	err := os.WriteFile(filepath.Join(CACHE_DIR, c.Meta.ID), []byte(now), 0644)
+	return err
+}
+
+func (c *Collector) GetLastRun() (time.Time, error) {
+	file := filepath.Join(CACHE_DIR, c.Meta.ID)
+	raw, err := os.ReadFile(file)
+	if err != nil {
+		return time.Time{}, err
+	}
+	i, err := strconv.ParseInt(string(raw), 10, 64)
+	if err != nil {
+		slog.Warn("cannot parse timestamp", "file", file, "err", err)
+		return time.Time{}, err
+	}
+	return time.Unix(i, 0), nil
 }

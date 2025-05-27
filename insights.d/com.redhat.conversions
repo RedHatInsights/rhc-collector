@@ -1,0 +1,6 @@
+[meta]
+name = "CentOS to RHEL conversions"
+
+[exec]
+shell = "./_mock/org.example.mock"
+content_type = "application/vnd.redhat.advisor.mock+tar.xz"

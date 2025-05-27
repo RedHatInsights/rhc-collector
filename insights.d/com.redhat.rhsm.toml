@@ -1,7 +1,0 @@
-[meta]
-id = "com.redhat.rhsm"
-name = "Red Hat Subscription Management"
-
-[exec]
-shell = "./insights.d/org.example.mock"
-content_type = "application/vnd.redhat.advisor.mock+tar.xz"

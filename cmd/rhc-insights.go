@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"math/rand"
 	"net/url"
 	"os"
 	"strings"
@@ -108,6 +107,12 @@ func main() {
 				},
 			},
 			{
+				Name:      "info",
+				Action:    doInfo,
+				Usage:     "display collector information",
+				UsageText: "rhc insights info [FLAGS] COLLECTOR",
+			},
+			{
 				Name:      "ls",
 				Action:    doList,
 				Usage:     "list collectors",
@@ -115,7 +120,7 @@ func main() {
 			},
 			{
 				Name:      "ps",
-				Action:    doTimers,
+				Action:    doPs,
 				Usage:     "list collector timers",
 				UsageText: "rhc insights ps [FLAGS]",
 			},
@@ -166,6 +171,10 @@ func main() {
 		os.Exit(1)
 	}
 	slog.Info("done")
+}
+
+func doInfo(ctx context.Context, cmd *cli.Command) error {
+	return ErrorNotImplemented
 }
 
 func doList(ctx context.Context, cmd *cli.Command) error {
@@ -259,25 +268,37 @@ func doRunHuman(ctx context.Context, cmd *cli.Command) error {
 	return Upload(archive, collector.Exec.ContentType)
 }
 
-func doTimers(ctx context.Context, cmd *cli.Command) error {
+func doPs(ctx context.Context, cmd *cli.Command) error {
+	switch cmd.Value("format") {
+	case "json":
+		return ErrorNotImplemented
+	default:
+		return doPsHuman(ctx, cmd)
+	}
+}
+
+func doPsHuman(ctx context.Context, cmd *cli.Command) error {
 	collectors, err := GetCollectors()
 	if err != nil {
 		return err
 	}
 
-	tbl := table.New("ID", "FLAGS", "NEXT")
+	tbl := table.New("ID", "LAST", "NEXT")
 	for _, collector := range collectors {
-		tbl.AddRow(collector.Meta.ID, "E ?", fmt.Sprintf("%dh", rand.Uint32()%4+1))
+		var last string
+		lastTimestamp, err := collector.GetLastRun()
+		if err != nil {
+			last = "-"
+		} else {
+			// TODO Show as relative: 3h 47m
+			last = lastTimestamp.Format(time.RFC3339)
+		}
+		tbl.AddRow(collector.Meta.ID, last, "")
 	}
 	tbl.Print()
 
 	fmt.Println()
-	fmt.Println("E ... Enabled by default  D ... Disabled by default")
-	fmt.Println("e ... Enabled             d ... Disabled")
-	fmt.Println("L ... Locked              ! ... Issue detected")
-	fmt.Println()
-	fmt.Println("More detailed information is available via systemd:")
-	fmt.Println("$ systemctl status rhc-insights-$ID.timer")
+	fmt.Println("Hint: Run 'rhc insights info COLLECTOR' to show more details.")
 
 	// TODO If we are not root, pass --user
 	return nil

@@ -1,7 +1,6 @@
 [meta]
-id = "org.foreman"
 name = "Red Hat Satellite"
 
 [exec]
-shell = "./insights.d/org.example.mock"
+shell = "./_mock/org.example.mock"
 content_type = "application/vnd.redhat.advisor.mock+tar.xz"
