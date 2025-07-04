@@ -1,3 +1,3 @@
 .PHONY: build
 build:
-	go build ./cmd/rhc-insights.go
+	go build ./cmd/rhc-collector.go

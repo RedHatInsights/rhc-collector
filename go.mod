@@ -1,4 +1,4 @@
-module github.com/RedHatInsights/rhc-insights
+module github.com/RedHatInsights/rhc-collector
 
 go 1.23.8
 

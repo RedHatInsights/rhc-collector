@@ -25,4 +25,4 @@ go.work.sum
 .env
 
 # binaries
-rhc-insights
+rhc-collector

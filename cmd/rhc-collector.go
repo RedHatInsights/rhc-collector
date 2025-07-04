@@ -15,7 +15,7 @@ import (
 	"github.com/rodaine/table"
 	"github.com/urfave/cli/v3"
 
-	. "github.com/RedHatInsights/rhc-insights"
+	. "github.com/RedHatInsights/rhc-collector"
 )
 
 func init() {
@@ -82,16 +82,16 @@ var ErrorNotImplemented = fmt.Errorf("not implemented")
 func main() {
 	// TODO Bash completion for collectors and flags
 	cmd := &cli.Command{
-		Name:            "rhc insights",
+		Name:            "rhc collector",
 		HideHelpCommand: true,
 		Usage:           "Collect and upload data",
-		UsageText:       "rhc insights COMMAND [FLAGS]",
+		UsageText:       "rhc collector COMMAND [FLAGS]",
 		Commands: []*cli.Command{
 			{
 				Name:      "run",
 				Action:    doRun,
 				Usage:     "run collector",
-				UsageText: "rhc insights run [FLAGS] COLLECTOR",
+				UsageText: "rhc collector run [FLAGS] COLLECTOR",
 				Flags: []cli.Flag{
 					&cli.BoolFlag{
 						Name:  "keep",
@@ -110,25 +110,25 @@ func main() {
 				Name:      "info",
 				Action:    doInfo,
 				Usage:     "display collector information",
-				UsageText: "rhc insights info [FLAGS] COLLECTOR",
+				UsageText: "rhc collector info [FLAGS] COLLECTOR",
 			},
 			{
 				Name:      "ls",
 				Action:    doList,
 				Usage:     "list collectors",
-				UsageText: "rhc insights ls [FLAGS]",
+				UsageText: "rhc collector ls [FLAGS]",
 			},
 			{
 				Name:      "ps",
 				Action:    doPs,
 				Usage:     "list collector timers",
-				UsageText: "rhc insights ps [FLAGS]",
+				UsageText: "rhc collector ps [FLAGS]",
 			},
 			{
 				Name:      "enable",
 				Action:    doEnable,
 				Usage:     "enable collector timer",
-				UsageText: "rhc insights enable [FLAGS] COLLECTOR",
+				UsageText: "rhc collector enable [FLAGS] COLLECTOR",
 				Arguments: []cli.Argument{
 					&cli.StringArgs{Name: "collector", Min: 1, Max: 1},
 				},
@@ -137,7 +137,7 @@ func main() {
 				Name:      "disable",
 				Action:    doDisable,
 				Usage:     "disable collector timer",
-				UsageText: "rhc insights disable [FLAGS] COLLECTOR",
+				UsageText: "rhc collector disable [FLAGS] COLLECTOR",
 				Arguments: []cli.Argument{
 					&cli.StringArgs{Name: "collector", Min: 1, Max: 1},
 				},
@@ -298,7 +298,7 @@ func doPsHuman(ctx context.Context, cmd *cli.Command) error {
 	tbl.Print()
 
 	fmt.Println()
-	fmt.Println("Hint: Run 'rhc insights info COLLECTOR' to show more details.")
+	fmt.Println("Hint: Run 'rhc collector info COLLECTOR' to show more details.")
 
 	// TODO If we are not root, pass --user
 	return nil
