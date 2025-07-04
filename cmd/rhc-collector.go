@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -54,7 +55,7 @@ func init() {
 	{
 		// Configure ingress
 		// TODO Read rhsm.conf (or equivalent)
-		if useStage := os.Getenv("_STAGE"); useStage != "" {
+		if useStage := os.Getenv("RHC_ENVIRONMENT"); useStage == "stage" {
 			slog.Debug("using stage Ingress")
 			Ingress.URL.Host = "cert.console.stage.redhat.com:443"
 		}
@@ -111,18 +112,21 @@ func main() {
 				Action:    doInfo,
 				Usage:     "display collector information",
 				UsageText: "rhc collector info [FLAGS] COLLECTOR",
+				Arguments: []cli.Argument{
+					&cli.StringArgs{Name: "collector", Min: 1, Max: 1},
+				},
 			},
 			{
-				Name:      "ls",
+				Name:      "list",
 				Action:    doList,
 				Usage:     "list collectors",
-				UsageText: "rhc collector ls [FLAGS]",
+				UsageText: "rhc collector list [FLAGS]",
 			},
 			{
-				Name:      "ps",
+				Name:      "timers",
 				Action:    doPs,
 				Usage:     "list collector timers",
-				UsageText: "rhc collector ps [FLAGS]",
+				UsageText: "rhc collector timers [FLAGS]",
 			},
 			{
 				Name:      "enable",
@@ -173,57 +177,144 @@ func main() {
 	slog.Info("done")
 }
 
+// CollectorInfoDTO is public API for the 'info' command.
+type CollectorInfoDTO struct {
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	Feature        string `json:"feature"`
+	Command        string `json:"command"`
+	ContentType    string `json:"content-type"`
+	UID            uint   `json:"uid"`
+	GID            uint   `json:"gid"`
+	DefinitionPath string `json:"path"`
+	SystemdService string `json:"systemd-service"`
+	SystemdTimer   string `json:"systemd-timer"`
+}
+
+func NewCollectorInfoDTO(collector Collector) (CollectorInfoDTO, error) {
+	dto := CollectorInfoDTO{}
+	dto.ID = collector.Meta.ID
+	dto.Name = collector.Meta.Name
+	dto.Feature = collector.Meta.Feature
+	dto.Command = collector.Exec.Command
+	dto.ContentType = collector.Exec.ContentType
+	dto.UID = collector.Exec.UID
+	dto.GID = collector.Exec.GID
+	dto.DefinitionPath = collector.Generated.Path
+	dto.SystemdService = collector.Systemd.Service
+	dto.SystemdTimer = collector.Systemd.Timer
+	return dto, nil
+}
+
 func doInfo(ctx context.Context, cmd *cli.Command) error {
+	collector, err := GetCollector(cmd.StringArgs("collector")[0])
+	if err != nil {
+		slog.Error("could not find collector", "error", err)
+		return err
+	}
+
+	dto, err := NewCollectorInfoDTO(*collector)
+	if err != nil {
+		slog.Error("could not parse collector", "error", err)
+	}
+
+	switch cmd.Value("format") {
+	case "json":
+		return printInfoJSON(&dto)
+	default:
+		return printInfoHuman(&dto)
+	}
+}
+
+func printInfoJSON(dto *CollectorInfoDTO) error {
+	output, err := json.Marshal(dto)
+	if err != nil {
+		slog.Error("could not format collector info", "error", err)
+		return err
+	}
+	fmt.Println(string(output))
+	return nil
+}
+
+func printInfoHuman(dto *CollectorInfoDTO) error {
 	return ErrorNotImplemented
 }
 
 func doList(ctx context.Context, cmd *cli.Command) error {
-	switch cmd.Value("format") {
-	case "json":
-		return ErrorNotImplemented
-	default:
-		return doListHuman(ctx, cmd)
-	}
-}
-
-func doListHuman(ctx context.Context, cmd *cli.Command) error {
 	collectors, err := GetCollectors()
 	if err != nil {
+		slog.Error("could not find collectors", "error", err)
 		return err
 	}
 
+	dtos := make([]*CollectorInfoDTO, len(collectors))
+	for i, collector := range collectors {
+		dto, err := NewCollectorInfoDTO(*collector)
+		if err != nil {
+			slog.Error("could not parse collector", "error", err)
+			continue
+		}
+		dtos[i] = &dto
+	}
+
+	switch cmd.Value("format") {
+	case "json":
+		return printListJSON(dtos)
+	default:
+		return printListHuman(dtos)
+	}
+}
+
+func printListJSON(dtos []*CollectorInfoDTO) error {
+	output, err := json.Marshal(dtos)
+	if err != nil {
+		slog.Error("could not format collector list", "error", err)
+		return err
+	}
+	fmt.Println(string(output))
+	return nil
+}
+
+func printListHuman(dtos []*CollectorInfoDTO) error {
+	// TODO Support templating like podman does?
 	tbl := table.New("ID", "NAME")
-	for _, collector := range collectors {
-		tbl.AddRow(collector.Meta.ID, collector.Meta.Name)
+	for _, collector := range dtos {
+		tbl.AddRow(collector.ID, collector.Name)
 	}
 	tbl.Print()
 
 	return nil
 }
 
-func doRun(ctx context.Context, cmd *cli.Command) error {
-	switch cmd.Value("format") {
-	case "json":
-		return ErrorNotImplemented
-	default:
-		return doRunHuman(ctx, cmd)
-	}
+type CollectorRunDTO struct {
+	Collector       CollectorInfoDTO `json:"collector"`
+	CollectDuration float64          `json:"collect-duration"`
+	UploadDuration  float64          `json:"upload-duration,omitempty"`
+	Keep            bool             `json:"archive-kept"`
+	KeepPath        string           `json:"archive-path,omitempty"`
+	Upload          bool             `json:"archive-uploaded"`
 }
 
-func doRunHuman(ctx context.Context, cmd *cli.Command) error {
+func doRun(ctx context.Context, cmd *cli.Command) error {
 	collector, err := GetCollector(cmd.StringArgs("collector")[0])
 	if err != nil {
+		slog.Error("could not find collector", "error", err)
 		return err
 	}
+	collectorInfo, err := NewCollectorInfoDTO(*collector)
+	if err != nil {
+		slog.Error("could not parse collector", "error", err)
+		return err
+	}
+
 	keep := cmd.Bool("keep") || cmd.Bool("no-upload")
 	upload := !cmd.Bool("no-upload")
 
-	// TODO Do not print temporary text if not in interactive console
-	fmt.Printf("Executing '%s'\n", collector.Meta.Name)
-	start := time.Now()
+	// TODO Progress messages
+	collectStart := time.Now()
 	tempdir, err := Collect(collector)
-	delta := time.Since(start)
-	fmt.Printf("\033[0K\r")
+	collectDelta := time.Since(collectStart).Seconds()
+	slog.Debug("execution finished", "collector", collector.Meta.ID, "time", collectDelta)
 
 	defer func() {
 		if keep {
@@ -241,31 +332,73 @@ func doRunHuman(ctx context.Context, cmd *cli.Command) error {
 		return err
 	}
 
-	if delta > time.Second {
-		fmt.Printf("Execution of '%s' took %s.\n", collector.Meta.Name, delta.Truncate(time.Second/10))
-	}
-	if keep {
-		fmt.Printf("Data have been kept in '%s'.\n", tempdir)
-	}
-	if !upload {
-		slog.Debug("skipping data upload")
-		return nil
+	uploadDelta := 0.0
+	if upload {
+		archive, err := Compress(tempdir)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			err = os.Remove(archive)
+			if err == nil {
+				slog.Debug("wiped archive", "path", archive)
+			} else {
+				slog.Warn("did not wipe archive", "path", archive, "err", err)
+			}
+		}()
+
+		uploadSince := time.Now()
+		err = Upload(archive, collector.Exec.ContentType)
+		uploadDelta = time.Since(uploadSince).Seconds()
+		if err != nil {
+			return err
+		}
 	}
 
-	archive, err := Compress(tempdir)
+	dto := &CollectorRunDTO{
+		Collector:       collectorInfo,
+		CollectDuration: collectDelta,
+		UploadDuration:  uploadDelta,
+		Keep:            keep,
+		Upload:          upload,
+	}
+	if keep {
+		dto.KeepPath = tempdir
+	}
+
+	switch cmd.Value("format") {
+	case "json":
+		return printRunJSON(dto)
+	default:
+		return printRunHuman(dto)
+	}
+}
+
+func printRunJSON(dto *CollectorRunDTO) error {
+	output, err := json.Marshal(dto)
 	if err != nil {
 		return err
 	}
-	defer func() {
-		err = os.Remove(archive)
-		if err == nil {
-			slog.Debug("wiped archive", "path", archive)
-		} else {
-			slog.Warn("did not wipe archive", "path", archive, "err", err)
-		}
-	}()
+	fmt.Println(string(output))
+	return nil
+}
 
-	return Upload(archive, collector.Exec.ContentType)
+func printRunHuman(dto *CollectorRunDTO) error {
+	fmt.Printf("Finished running collection for %s.\n", dto.Collector.Name)
+
+	fmt.Printf("Collection took %f s", dto.CollectDuration)
+	if dto.Keep {
+		fmt.Printf(" and has been kept in %s.\n", dto.KeepPath)
+	} else {
+		fmt.Print(".\n")
+	}
+
+	if dto.Upload {
+		fmt.Printf("Uploading took %f s.\n", dto.UploadDuration)
+	} else {
+		fmt.Print("Data have not been uploaded.\n")
+	}
+	return nil
 }
 
 func doPs(ctx context.Context, cmd *cli.Command) error {

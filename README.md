@@ -9,7 +9,7 @@ For now, this repository contains mock binary that acts as a playground for rhc 
 ```shell
 $ make build
 $ sudo ./rhc-collector --help
-$ sudo _STAGE=1 HTTP_PROXY=... ./rhc-collector --debug run org.example.mock
+$ sudo RHC_ENVIRONMENT="stage" HTTPS_PROXY=... ./rhc-collector --debug run org.example.mock
 ```
 
 ## License

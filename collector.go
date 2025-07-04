@@ -24,11 +24,12 @@ var CACHE_DIR string = "/tmp/"
 
 type Collector struct {
 	Meta struct {
-		ID   string `toml:"id" json:"id"`
-		Name string `toml:"name" json:"name"`
+		ID      string `toml:"id" json:"id"`
+		Name    string `toml:"name" json:"name"`
+		Feature string `toml:"feature" json:"feature"`
 	} `toml:"meta" json:"meta"`
 	Exec struct {
-		Shell       string `toml:"shell" json:"shell"`
+		Command     string `toml:"command" json:"command"`
 		ContentType string `toml:"content_type" json:"content_type"`
 		UID         uint   `toml:"uid" json:"uid"`
 		GID         uint   `toml:"gid" json:"gid"`
@@ -36,6 +37,9 @@ type Collector struct {
 	Systemd struct {
 		Service string `toml:"service" json:"service"`
 		Timer   string `toml:"timer" json:"timer"`
+	} `toml:"systemd" json:"systemd"`
+	Generated struct {
+		Path string `toml:"path" json:"path"`
 	}
 }
 
@@ -65,10 +69,8 @@ func newCollectorFromConfiguration(path, config string) (*Collector, error) {
 		return nil, fmt.Errorf("cannot parse collector configuration")
 	}
 
-	id := filepath.Base(path)
-	cc.Meta.ID = id
-
-	slog.Debug("collector parsed", "id", cc.Meta.ID)
+	slog.Debug("collector parsed", "id", cc.Meta.ID, "path", path)
+	cc.Generated.Path = path
 	return &cc, nil
 }
 
@@ -128,8 +130,8 @@ func generateCollectionDirectory(collector *Collector) (string, error) {
 // Returns path to the temporary directory, where the data has been dumped, or an error.
 func Collect(collector *Collector) (string, error) {
 	cmd := exec.Command(
-		strings.Split(collector.Exec.Shell, " ")[0],
-		strings.Split(collector.Exec.Shell, " ")[1:]...,
+		strings.Split(collector.Exec.Command, " ")[0],
+		strings.Split(collector.Exec.Command, " ")[1:]...,
 	)
 	for _, variable := range os.Environ() {
 		cmd.Env = append(cmd.Env, variable)
@@ -151,21 +153,21 @@ func Collect(collector *Collector) (string, error) {
 		return "", fmt.Errorf("could not run collector: %v", err)
 	}
 
-	if err = collector.UpdateLastRun(); err != nil {
+	if err = collector.SetLastRun(); err != nil {
 		slog.Error("cannot update collection timestamp", "id", collector.Meta.ID, "err", err)
 	}
 
 	return tempdir, nil
 }
 
-func (c *Collector) UpdateLastRun() error {
+func (c *Collector) SetLastRun() error {
 	now := strconv.FormatInt(time.Now().Unix(), 10)
-	err := os.WriteFile(filepath.Join(CACHE_DIR, c.Meta.ID), []byte(now), 0644)
+	err := os.WriteFile(filepath.Join(CACHE_DIR, c.Meta.ID+".last-run"), []byte(now), 0644)
 	return err
 }
 
 func (c *Collector) GetLastRun() (time.Time, error) {
-	file := filepath.Join(CACHE_DIR, c.Meta.ID)
+	file := filepath.Join(CACHE_DIR, c.Meta.ID+".last-run")
 	raw, err := os.ReadFile(file)
 	if err != nil {
 		return time.Time{}, err

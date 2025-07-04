@@ -1,4 +1,5 @@
 [meta]
+id = "com.redhat.insights.advisor"
 name = "Red Hat Insights Advisor"
 feature = "analytics"
 
