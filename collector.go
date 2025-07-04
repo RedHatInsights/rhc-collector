@@ -30,7 +30,13 @@ type Collector struct {
 	Exec struct {
 		Shell       string `toml:"shell" json:"shell"`
 		ContentType string `toml:"content_type" json:"content_type"`
+		UID         uint   `toml:"uid" json:"uid"`
+		GID         uint   `toml:"gid" json:"gid"`
 	} `toml:"exec" json:"exec"`
+	Systemd struct {
+		Service string `toml:"service" json:"service"`
+		Timer   string `toml:"timer" json:"timer"`
+	}
 }
 
 // newCollectorFromPath loads a collector definition from path.

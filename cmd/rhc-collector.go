@@ -19,7 +19,7 @@ import (
 )
 
 func init() {
-	CONFIGURATIONS_DIR = "./insights.d/"
+	CONFIGURATIONS_DIR = "./collectors.d/"
 
 	{
 		// TODO Log into a file

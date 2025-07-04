@@ -1,6 +1,0 @@
-[meta]
-name = "Red Hat Insights Advisor"
-
-[exec]
-shell = "./_mock/org.example.mock"
-content_type = "application/vnd.redhat.advisor.mock+tar.xz"
